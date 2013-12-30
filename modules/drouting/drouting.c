@@ -432,9 +432,6 @@ static void dr_state_flusher(void)
 	db_key_t key_set;
 	db_val_t val_set;
 
-	if (!dr_persistent_state || !db_hdl || !rdata || !(*rdata)) {
-		return;
-	}
 
 	val_cmp.type = DB_INT;
 	val_cmp.nul  = 0;
@@ -814,7 +811,8 @@ static int dr_child_init(int rank)
 
 static int dr_exit(void)
 {
-	dr_state_flusher();
+	if (dr_persistent_state && db_hdl)
+		dr_state_flusher();
 
 	/* close DB connection */
 	if (db_hdl) {
