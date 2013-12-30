@@ -194,7 +194,7 @@ static inline int dupl_string(str* dst, const char* begin, const char* end)
 /*
  * This is the parsing function
  * The socket grammar should be:
- * 		 [user [':' password] '@'] ip [':' port] '/' exchange
+ * 		 [user [':' password] '@'] ip [':' port] ['/' vhost ] '/' exchange
  */
 static evi_reply_sock* rmq_parse(str socket)
 {
@@ -209,6 +209,7 @@ static evi_reply_sock* rmq_parse(str socket)
 		ST_PASS_PORT,	/* Password or port part */
 		ST_HOST,		/* Hostname part */
 		ST_PORT,		/* Port part */
+		ST_PATH,		/* Path part */
 	} st;
 
 	if (!socket.len || !socket.s) {
@@ -232,10 +233,11 @@ static evi_reply_sock* rmq_parse(str socket)
 	begin = socket.s;
 	len = socket.len;
 
-	for(i = 0; i < len; i++) {
+	for(i = 0; i <= len; i++) {
+		char next_char = (i < len) ? socket.s[i] : '\0';
 		switch(st) {
 		case ST_USER_HOST:
-			switch(socket.s[i]) {
+			switch(next_char) {
 			case '@':
 				st = ST_HOST;
 				if (dupl_string(&param->user, begin, socket.s + i)) goto err;
@@ -250,19 +252,19 @@ static evi_reply_sock* rmq_parse(str socket)
 				break;
 
 			case '/':
-				if (dupl_string(&sock->address, begin, socket.s + i) < 0)
-					goto err;
+				st = ST_PATH;
+				if (dupl_string(&sock->address, begin, socket.s + i) < 0) goto err;
+				begin = socket.s + i + 1;
 				sock->flags |= EVI_ADDRESS;
-				if (dupl_string(&param->exchange, socket.s + i + 1, 
-							socket.s + len) < 0)
-					goto err;
-				param->flags |= RMQ_PARAM_EXCH;
-				goto success;
+				break;
+
+			case '\0':
+				goto err;
 			}
 			break;
 
 		case ST_PASS_PORT:
-			switch(socket.s[i]) {
+			switch(next_char) {
 			case '@':
 				st = ST_HOST;
 				param->user.len = prev_token.len;
@@ -276,6 +278,7 @@ static evi_reply_sock* rmq_parse(str socket)
 				break;
 
 			case '/':
+				st = ST_PATH;
 				sock->address.len = prev_token.len;
 				sock->address.s = prev_token.s;
 				prev_token.s = 0;
@@ -288,16 +291,15 @@ static evi_reply_sock* rmq_parse(str socket)
 					goto err;
 				}
 				sock->flags |= EVI_PORT;
-				if (dupl_string(&param->exchange, socket.s + i + 1, 
-							socket.s + len) < 0)
-					goto err;
-				param->flags |= RMQ_PARAM_EXCH;
-				goto success;
+				break;
+
+			case '\0':
+				goto err;
 			}
 			break;
 
 		case ST_HOST:
-			switch(socket.s[i]) {
+			switch(next_char) {
 			case ':':
 				st = ST_PORT;
 				if (dupl_string(&sock->address, begin, socket.s + i) < 0)
@@ -307,21 +309,21 @@ static evi_reply_sock* rmq_parse(str socket)
 				break;
 
 			case '/':
-				if (dupl_string(&sock->address, begin, socket.s + i) < 0)
-					goto err;
+				st = ST_PATH;
+				if (dupl_string(&sock->address, begin, socket.s + i) < 0) goto err;
+				begin = socket.s + i + 1;
 				sock->flags |= EVI_ADDRESS;
+				break;
 
-				if (dupl_string(&param->exchange, socket.s + i + 1, 
-							socket.s + len) < 0)
-					goto err;
-				param->flags |= RMQ_PARAM_EXCH;
-				goto success;
+			case '\0':
+				goto err;
 			}
 			break;
 
 		case ST_PORT:
-			switch(socket.s[i]) {
+			switch(next_char) {
 			case '/':
+				st = ST_PATH;
 				sock->port = str2s(begin, socket.s + i - begin, 0);
 				if (!sock->port) {
 					LM_DBG("malformed port: %.*s\n",
@@ -329,14 +331,27 @@ static evi_reply_sock* rmq_parse(str socket)
 					goto err;
 				}
 				sock->flags |= EVI_PORT;
+				break;
 
-				if (dupl_string(&param->exchange, socket.s + i + 1, 
-							socket.s + len) < 0)
-					goto err;
+			case '\0':
+				goto err;
+			}
+			break;
+
+		case ST_PATH:
+			switch(next_char) {
+			case '/':
+				if (dupl_string(&param->vhost, begin, socket.s + i) < 0) goto err;
+				begin = socket.s + i + 1;
+				param->flags |= RMQ_PARAM_VHOST;
+				break;
+			case '\0':
+				if (dupl_string(&param->exchange, begin, socket.s + i) < 0) goto err;
 				param->flags |= RMQ_PARAM_EXCH;
 				goto success;
 			}
 			break;
+
 		}
 	}
 	LM_WARN("not implemented %.*s\n", socket.len, socket.s); 
@@ -408,6 +423,11 @@ static str rmq_print(evi_reply_sock *sock)
 	}
 	if (sock->flags & EVI_ADDRESS)
 		DO_PRINT(sock->address.s, sock->address.len - 1);
+
+	if (param->flags & RMQ_PARAM_VHOST) {
+		DO_PRINT("/", 1);
+		DO_PRINT(param->vhost.s, param->vhost.len - 1);
+	}
 
 	if (param->flags & RMQ_PARAM_EXCH) {
 		DO_PRINT("/", 1);

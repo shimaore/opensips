@@ -60,7 +60,7 @@
 	<section>
 	<title>RabbitMQ socket syntax</title>
 	<para>
-		<para><emphasis>'rabbitmq:' [user[':'password] '@' host [':' port] '/' exchange</emphasis></para>
+    <para><emphasis>'rabbitmq:' [user[':'password] '@' host [':' port] ['/' vhost] '/' exchange</emphasis></para>
 	</para>
 	<para>
 		Meanings:
@@ -84,6 +84,9 @@
 			<listitem><para>
 					<emphasis>port</emphasis> - port of the RabbitMQ server. The
 					default value is '5672'.
+			</para>	</listitem>
+			<listitem><para>
+					<emphasis>vhost</emphasis> - virtual host on the RabbitMQ server.
 			</para>	</listitem>
 			<listitem><para>
 					<emphasis>exchange</emphasis> - this is the exchange routing 

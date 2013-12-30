@@ -190,6 +190,8 @@ void rmq_free_param(rmq_params_t *rmqp)
 	if ((rmqp->flags & RMQ_PARAM_PASS) && rmqp->pass.s &&
 			rmqp->pass.s != (char *)RMQ_DEFAULT_UP)
 		shm_free(rmqp->pass.s);
+	if ((rmqp->flags & RMQ_PARAM_VHOST) && rmqp->vhost.s)
+		shm_free(rmqp->vhost.s);
 	if ((rmqp->flags & RMQ_PARAM_EXCH) && rmqp->exchange.s)
 		shm_free(rmqp->exchange.s);
 }
@@ -266,13 +268,13 @@ frame_max: maximum AMQP frame size for client
 
 		if (rmq_error("Logging in", amqp_login(
 				rmqp->conn,
-				RMQ_DEFAULT_VHOST,
+				(rmqp->flags & RMQ_PARAM_VHOST) ? rmqp->vhost.s : RMQ_DEFAULT_VHOST,
 				0,
 				RMQ_DEFAULT_MAX,
 				rmqp->heartbeat,
 				AMQP_SASL_METHOD_PLAIN,
-				rmqp->flags & RMQ_PARAM_USER ? rmqp->user.s : RMQ_DEFAULT_UP,
-				rmqp->flags & RMQ_PARAM_PASS ? rmqp->pass.s : RMQ_DEFAULT_UP)))
+				(rmqp->flags & RMQ_PARAM_USER) ? rmqp->user.s : RMQ_DEFAULT_UP,
+				(rmqp->flags & RMQ_PARAM_PASS) ? rmqp->pass.s : RMQ_DEFAULT_UP)))
 			goto destroy_rmqp;
 	}
 	if (!(rmqp->flags & RMQ_PARAM_CHAN)) {

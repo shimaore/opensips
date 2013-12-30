@@ -59,8 +59,10 @@
 #define RMQ_PARAM_CHAN	(1 << 3)
 #define RMQ_PARAM_USER	(1 << 4)
 #define RMQ_PARAM_PASS	(1 << 5)
+#define RMQ_PARAM_VHOST	(1 << 6)
 
 typedef struct _rmq_params {
+	str vhost;
 	str exchange;
 	str user;
 	str pass;

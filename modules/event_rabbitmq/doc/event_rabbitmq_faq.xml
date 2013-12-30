@@ -26,11 +26,11 @@
 	</qandaentry>
 	<qandaentry>
 		<question>
-		<para>What is the vhost used by the AMQP server?</para>
+		<para>What is the default vhost used by the AMQP server?</para>
 		</question>
 		<answer>
 			<para>
-			Currently, the only vhost supported is <emphasis>'/'</emphasis>.
+			The default vhost is <emphasis>'/'</emphasis>.
 		</para>
 		</answer>
 	</qandaentry>
@@ -40,7 +40,7 @@
 		</question>
 		<answer>
 		<para>
-				This version doesn't support a different vhost.
+				Add it in the path, before the exchange's name.
 		</para>
 		</answer>
 	</qandaentry>
