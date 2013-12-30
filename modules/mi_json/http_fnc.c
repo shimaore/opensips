@@ -60,7 +60,7 @@ static inline void MI_JSON_COPY(struct page_buf* pb, const str s) {
   }
 }
 
-static const str MI_JSON_ESC_QUOT =  str_init("\\\""); /* " */
+static const str MI_JSON_ESC =  str_init("\\");
 
 static inline void MI_JSON_ESC_COPY(struct page_buf* pb, const str s) {
   str temp_holder;
@@ -76,11 +76,12 @@ static inline void MI_JSON_ESC_COPY(struct page_buf* pb, const str s) {
   for(temp_counter=0;temp_counter<s.len;temp_counter++) {
     switch(s.s[temp_counter]) {
     case '"':
+    case '\\':
       temp_holder.len = temp_counter - temp_holder.len;
       MI_JSON_COPY(pb, temp_holder);
-      MI_JSON_COPY(pb, MI_JSON_ESC_QUOT);
-      temp_holder.s += temp_counter + 1;
-      temp_holder.len = temp_counter + 1;
+      MI_JSON_COPY(pb, MI_JSON_ESC);
+      temp_holder.s = s.s + temp_counter;
+      temp_holder.len = temp_counter;
       break;
     }
   }
@@ -310,8 +311,9 @@ struct mi_root* mi_json_run_mi_cmd(const str* miCmd, const str* params,
   html_page_data.buffer.s = buffer->s;
   html_page_data.buffer.len = buffer->len;
 
+  /* FIXME: find a proper way for handling flushing */
   mi_rpl = run_mi_cmd(f, mi_cmd,
-        (mi_flush_f *)mi_json_flush_tree, &html_page_data);
+        NULL, &html_page_data);
   if (mi_rpl == NULL) {
     LM_ERR("failed to process the command\n");
     if (mi_cmd) free_mi_tree(mi_cmd);

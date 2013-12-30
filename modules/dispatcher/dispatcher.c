@@ -26,15 +26,17 @@
  * -------
  * 2004-07-31  first version, by daniel
  * 2007-01-11  Added a function to check if a specific gateway is in a group
- *				(carsten - Carsten Bock, BASIS AudioNet GmbH)
+ *              (carsten - Carsten Bock, BASIS AudioNet GmbH)
  * 2007-02-09  Added active probing of failed destinations and automatic
- *				re-enabling of destinations (carsten)
+ *              re-enabling of destinations (carsten)
  * 2007-05-08  Ported the changes to SVN-Trunk and renamed ds_is_domain
- *				to ds_is_from_list.  (carsten)
+ *              to ds_is_from_list.  (carsten)
  * 2007-07-18  Added support for load/reload groups from DB 
- * 			   reload triggered from ds_reload MI_Command (ancuta)
+ *              reload triggered from ds_reload MI_Command (ancuta)
  * 2009-05-18  Added support for weights for the destinations;
- * 			   added support for custom "attrs" (opaque string) (bogdan)
+ *              added support for custom "attrs" (opaque string) (bogdan)
+ * 2013-12-02  Added support state persistency (restart and reload) (bogdan)
+ * 2013-12-05  Added a safer reload mechanism based on locking read/writter (bogdan)
  */
 
 #include <stdio.h>
@@ -54,12 +56,13 @@
 #include "../../db/db.h"
 
 #include "dispatch.h"
+#include "ds_bl.h"
 
 
 #define DS_SET_ID_COL		"setid"
 #define DS_DEST_URI_COL		"destination"
 #define DS_DEST_SOCK_COL	"socket"
-#define DS_DEST_FLAGS_COL	"flags"
+#define DS_DEST_STATE_COL	"state"
 #define DS_DEST_WEIGHT_COL	"weight"
 #define DS_DEST_ATTRS_COL	"attrs"
 #define DS_TABLE_NAME 		"dispatcher"
@@ -101,7 +104,7 @@ str ds_db_url         = {NULL, 0};
 str ds_set_id_col     = str_init(DS_SET_ID_COL);
 str ds_dest_uri_col   = str_init(DS_DEST_URI_COL);
 str ds_dest_sock_col  = str_init(DS_DEST_SOCK_COL);
-str ds_dest_flags_col = str_init(DS_DEST_FLAGS_COL);
+str ds_dest_state_col = str_init(DS_DEST_STATE_COL);
 str ds_dest_weight_col= str_init(DS_DEST_WEIGHT_COL);
 str ds_dest_attrs_col = str_init(DS_DEST_ATTRS_COL);
 str ds_table_name     = str_init(DS_TABLE_NAME);
@@ -119,8 +122,10 @@ struct socket_info *probing_sock = NULL;
 static str dispatcher_event = str_init("E_DISPATCHER_STATUS");
 event_id_t dispatch_evi_id;
 
+
 /** module functions */
 static int mod_init(void);
+static int ds_child_init(int rank);
 
 static int w_ds_select_dst(struct sip_msg*, char*, char*);
 static int w_ds_select_dst_limited(struct sip_msg*, char*, char*, char*);
@@ -146,7 +151,6 @@ static struct mi_root* ds_mi_set(struct mi_root* cmd, void* param);
 static struct mi_root* ds_mi_list(struct mi_root* cmd, void* param);
 static struct mi_root* ds_mi_reload(struct mi_root* cmd_tree, void* param);
 static int mi_child_init(void);
-
 
 static cmd_export_t cmds[]={
 	{"ds_select_dst",    (cmd_function)w_ds_select_dst,    2, fixup_igp_igp, 0,
@@ -183,7 +187,7 @@ static param_export_t params[]={
 	{"setid_col",       STR_PARAM, &ds_set_id_col.s},
 	{"destination_col", STR_PARAM, &ds_dest_uri_col.s},
 	{"socket_col",      STR_PARAM, &ds_dest_sock_col.s},
-	{"flags_col",       STR_PARAM, &ds_dest_flags_col.s},
+	{"state_col",       STR_PARAM, &ds_dest_state_col.s},
 	{"weight_col",      STR_PARAM, &ds_dest_weight_col.s},
 	{"attrs_col",       STR_PARAM, &ds_dest_attrs_col.s},
 	{"force_dst",       INT_PARAM, &ds_force_dst},
@@ -231,7 +235,7 @@ struct module_exports exports= {
 	mod_init,   /* module initialization function */
 	(response_function) 0,
 	(destroy_function) destroy,
-	0,          /* per-child init function */
+	ds_child_init, /* per-child init function */
 };
 
 
@@ -246,22 +250,14 @@ static int mod_init(void)
 
 	/* Load stuff from DB */
 	init_db_url( ds_db_url , 0 /*cannot be null*/);
-	if(init_data()!= 0)
-		return -1;
 
 	ds_table_name.len = strlen(ds_table_name.s);
 	ds_set_id_col.len = strlen(ds_set_id_col.s);
 	ds_dest_uri_col.len = strlen(ds_dest_uri_col.s);
 	ds_dest_sock_col.len = strlen(ds_dest_sock_col.s);
-	ds_dest_flags_col.len = strlen(ds_dest_flags_col.s);
+	ds_dest_state_col.len = strlen(ds_dest_state_col.s);
 	ds_dest_weight_col.len = strlen(ds_dest_weight_col.s);
 	ds_dest_attrs_col.len = strlen(ds_dest_attrs_col.s);
-
-	if(init_ds_db()!= 0)
-	{
-		LM_ERR("failed to load data from database\n");
-		return -1;
-	}
 
 	/* handle AVPs spec */
 	dst_avp_param.len = strlen(dst_avp_param.s);
@@ -335,16 +331,6 @@ static int mod_init(void)
 		attrs_avp_type = 0;
 	}
 
-	if (init_ds_bls()!=0) {
-		LM_ERR("failed to init DS blacklists\n");
-		return E_CFG;
-	}
-
-	if (populate_ds_bls()) {
-		LM_ERR("Failed to populate DS blacklist\n");
-		return E_CFG;
-	}
-
 	if (hash_pvar_param.s && (hash_pvar_param.len=strlen(hash_pvar_param.s))>0 ) {
 		if(pv_parse_format(&hash_pvar_param, &hash_param_model) < 0
 				|| hash_param_model==NULL) {
@@ -367,6 +353,31 @@ static int mod_init(void)
 	pvar_algo_param.len = strlen(pvar_algo_param.s);
 	if (pvar_algo_param.len)
 		ds_pvar_parse_pattern(pvar_algo_param);
+
+	if (init_ds_bls()!=0) {
+		LM_ERR("failed to init DS blacklists\n");
+		return E_CFG;
+	}
+
+	if (init_ds_data()!=0) {
+		LM_ERR("failed to init DS data holder\n");
+		return -1;
+	}
+
+	/* open DB connection to load provisioning data */
+	if (init_ds_db()!= 0) {
+		LM_ERR("failed to init database support\n");
+		return -1;
+	}
+
+	/* do the actula data load */
+	if (ds_reload_db()!=0) {
+		LM_ERR("failed to load data from DB\n");
+		return -1;
+	}
+
+	/* close DB connection */
+	ds_disconnect_db();
 
 	/* Only, if the Probing-Timer is enabled the TM-API needs to be loaded: */
 	if (ds_ping_interval > 0)
@@ -422,9 +433,29 @@ static int mod_init(void)
 		}
 	}
 
-	dispatch_evi_id = evi_publish_event(dispatcher_event); 
+	/* register timer to flush the state of destination back to DB */
+	if (register_timer("ds-flusher",ds_flusher_routine,NULL, 30)<0){
+		LM_ERR("failed to register timer for DB flushing!\n");
+		return -1;
+	}
+
+	dispatch_evi_id = evi_publish_event(dispatcher_event);
 	if (dispatch_evi_id == EVI_ERROR)
 		LM_ERR("cannot register dispatcher event\n");
+	return 0;
+}
+
+
+/*
+ * Per process init function
+ */
+#include "../../pt.h"
+static int ds_child_init(int rank)
+{
+	/* we need DB connection from the timer procs (for the flushing) 
+	 * and from the main proc (for final flush on shutdown) */
+	if ( (process_no==0 || rank==PROC_TIMER) && ds_db_url.s)
+		return ds_connect_db();
 	return 0;
 }
 
@@ -434,7 +465,6 @@ static int mi_child_init(void)
 	if(ds_db_url.s)
 		return ds_connect_db();
 	return 0;
-
 }
 
 
@@ -444,7 +474,11 @@ static int mi_child_init(void)
 static void destroy(void)
 {
 	LM_DBG("destroying module ...\n");
-	ds_destroy_list();
+
+	/* flush the state of the destinations */
+	ds_flusher_routine(0, NULL);
+
+	ds_destroy_data();
 
 	/* destroy blacklists */
 	destroy_ds_bls();
@@ -474,6 +508,7 @@ static int w_ds_select_dst(struct sip_msg* msg, char* set, char* alg)
 	return ds_select_dst(msg, s, a, 0 /*set dst uri*/, 1000);
 }
 
+
 /**
  * same wrapper as w_ds_select_dst, but it allows cutting down the result set
  */
@@ -502,6 +537,7 @@ static int w_ds_select_dst_limited(struct sip_msg* msg, char* set, char* alg, ch
 	return ds_select_dst(msg, s, a, 0 /*set dst uri*/, m);
 }
 
+
 /**
  *
  */
@@ -524,6 +560,7 @@ static int w_ds_select_domain(struct sip_msg* msg, char* set, char* alg)
 
 	return ds_select_dst(msg, s, a, 1/*set host port*/, 1000);
 }
+
 
 /**
  *
@@ -553,6 +590,7 @@ static int w_ds_select_domain_limited(struct sip_msg* msg, char* set, char* alg,
 	return ds_select_dst(msg, s, a, 1/*set host port*/, m);
 }
 
+
 /**
  *
  */
@@ -560,6 +598,7 @@ static int w_ds_next_dst(struct sip_msg *msg, char *str1, char *str2)
 {
 	return ds_next_dst(msg, 0/*set dst uri*/);
 }
+
 
 /**
  *
@@ -569,6 +608,7 @@ static int w_ds_next_domain(struct sip_msg *msg, char *str1, char *str2)
 	return ds_next_dst(msg, 1/*set host port*/);
 }
 
+
 /**
  *
  */
@@ -576,6 +616,7 @@ static int w_ds_mark_dst0(struct sip_msg *msg, char *str1, char *str2)
 {
 	return ds_mark_dst(msg, 0);
 }
+
 
 /**
  *
@@ -617,6 +658,7 @@ static int in_list_fixup(void** param, int param_no)
 		return -1;
 	}
 }
+
 
 static int ds_count_fixup(void** param, int param_no)
 {
@@ -672,6 +714,7 @@ static int ds_count_fixup(void** param, int param_no)
 
 	return 0;
 }
+
 
 /************************** MI STUFF ************************/
 
@@ -759,12 +802,8 @@ static struct mi_root* ds_mi_list(struct mi_root* cmd_tree, void* param)
 
 static struct mi_root* ds_mi_reload(struct mi_root* cmd_tree, void* param)
 {
-	if (ds_load_db()<0)
+	if (ds_reload_db()<0)
 		return init_mi_tree(500, MI_ERR_RELOAD, MI_ERR_RELOAD_LEN);
-
-	if (populate_ds_bls()<0) {
-		return init_mi_tree(500, MI_ERR_RELOAD, MI_ERR_RELOAD_LEN);
-	}
 
 	return init_mi_tree(200, MI_OK_S, MI_OK_LEN);
 }

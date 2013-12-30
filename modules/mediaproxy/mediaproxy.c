@@ -510,6 +510,11 @@ get_to_uri(struct sip_msg *msg)
     str uri;
     char *ptr;
 
+    if (parse_headers(msg, HDR_TO_F, 0) == -1) {
+        LM_ERR("failed to parse To header\n");
+        return unknown;
+    }
+
     if (!msg->to) {
         LM_ERR("missing To header\n");
         return unknown;
@@ -561,6 +566,11 @@ get_to_tag(struct sip_msg *msg)
 
     if (msg->first_line.type==SIP_REPLY && msg->REPLY_STATUS<200) {
         // Ignore the To tag for provisional replies
+        return undefined;
+    }
+
+    if (parse_headers(msg, HDR_TO_F, 0) == -1) {
+        LM_ERR("failed to parse To header\n");
         return undefined;
     }
 
@@ -680,8 +690,8 @@ check_content_type(struct sip_msg *msg)
 static int
 get_sdp_message(struct sip_msg *msg, str *sdp)
 {
-    if ( get_body(msg, sdp)!=0 || sdp->len==0)
-        return -1;
+    if (get_body(msg, sdp)!=0 || sdp->len==0)
+        return -2;
 
     if (!check_content_type(msg))
         return -1;
