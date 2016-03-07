@@ -370,12 +370,6 @@ static int mod_init(void) {
 	/* check if we need to start extra process */
 	procs[0].no = (ipip_capture_on || moni_capture_on) ? raw_sock_children:0;
 
-	if(register_mi_mod(exports.name, mi_cmds)!=0)
-	{
-		LM_ERR("failed to register MI commands\n");
-		return -1;
-	}
-
 	db_url.len = strlen(db_url.s);
 	table_name.len = strlen(table_name.s);
 	date_column.len = strlen(date_column.s);
@@ -498,7 +492,7 @@ static int mod_init(void) {
 			return -1;
 		}
 
-		if(promisc_on && raw_interface.len) {
+		if(promisc_on && raw_interface.s && raw_interface.len) {
 
 			 memset(&ifr, 0, sizeof(ifr));
 			 memcpy(ifr.ifr_name, raw_interface.s, raw_interface.len);
@@ -715,7 +709,7 @@ int hep_msg_received(int sockfd, struct receive_info *ri, str *msg, void* param)
         else if(heph->hp_p == IPPROTO_ESP) ri->proto=PROTO_WS;
                                             /* fake protocol */
         else {
-        	LM_ERR("unknow protocol [%d]\n",heph->hp_p);
+        	LM_ERR("unknown protocol [%d]\n",heph->hp_p);
                 ri->proto = PROTO_NONE;
 	}
 
@@ -1043,7 +1037,7 @@ static int sip_capture(struct sip_msg *msg, char *s1, char *s2)
 		EMPTY_STR(sco.ruri_user);
 	}
 	else {
-		LM_ERR("unknow type [%i]\n", msg->first_line.type);
+		LM_ERR("unknown type [%i]\n", msg->first_line.type);
 		EMPTY_STR(sco.method);
 		EMPTY_STR(sco.reply_reason);
 		EMPTY_STR(sco.ruri);

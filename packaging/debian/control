@@ -14,7 +14,7 @@ Build-Depends: bison,
                libfreeradius-client-dev | libradiusclient-ng-dev,
                libgeoip-dev (>= 1.4.4),
                libhiredis-dev,
-               libjson0-dev,
+               libjson-c-dev,
                libldap2-dev,
                liblua5.1-dev,
                libmemcache-dev,
@@ -35,11 +35,12 @@ Build-Depends: bison,
                unixodbc-dev,
                xsltproc,
                zlib1g-dev
-Standards-Version: 3.9.6
+Standards-Version: 3.9.7
 Homepage: http://www.opensips.org/
 
 Package: opensips
 Architecture: any
+Multi-Arch: foreign
 Depends: adduser, ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}
 Suggests: opensips-b2bua-module,
           opensips-berkeley-module,
@@ -93,6 +94,7 @@ Description: very fast and configurable SIP server
 Package: opensips-dbg
 Priority: extra
 Architecture: any
+Multi-Arch: same
 Section: debug
 Depends: opensips (= ${binary:Version}), ${misc:Depends}
 Description: very fast and configurable SIP server [debug symbols]
@@ -105,6 +107,7 @@ Description: very fast and configurable SIP server [debug symbols]
 
 Package: opensips-mysql-module
 Architecture: any
+Multi-Arch: same
 Depends: mysql-client,
          opensips (= ${binary:Version}),
          ${misc:Depends},
@@ -118,6 +121,7 @@ Description: MySQL database connectivity module for OpenSIPS
 
 Package: opensips-postgres-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}),
          postgresql-client,
          ${misc:Depends},
@@ -131,6 +135,7 @@ Description: PostgreSQL database connectivity module for OpenSIPS
 
 Package: opensips-jabber-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Jabber gateway module for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -141,6 +146,7 @@ Description: Jabber gateway module for OpenSIPS
 
 Package: opensips-cpl-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: CPL module (CPL interpreter engine) for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -152,6 +158,7 @@ Description: CPL module (CPL interpreter engine) for OpenSIPS
 
 Package: opensips-radius-modules
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Radius modules for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -162,6 +169,7 @@ Description: Radius modules for OpenSIPS
 
 Package: opensips-unixodbc-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: unixODBC database connectivity module for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -172,6 +180,7 @@ Description: unixODBC database connectivity module for OpenSIPS
 
 Package: opensips-presence-modules
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: SIMPLE presence modules for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -184,6 +193,7 @@ Description: SIMPLE presence modules for OpenSIPS
 
 Package: opensips-xmlrpc-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: XMLRPC support for OpenSIPS's Management Interface
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -195,6 +205,7 @@ Description: XMLRPC support for OpenSIPS's Management Interface
 
 Package: opensips-perl-modules
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Perl extensions and database driver for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -206,6 +217,7 @@ Description: Perl extensions and database driver for OpenSIPS
 
 Package: opensips-snmpstats-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}),
          snmpd,
          ${misc:Depends},
@@ -220,6 +232,7 @@ Description: SNMP AgentX subagent module for OpenSIPS
 
 Package: opensips-xmpp-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: XMPP gateway module for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -230,6 +243,7 @@ Description: XMPP gateway module for OpenSIPS
 
 Package: opensips-carrierroute-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Carrierroute module for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -241,6 +255,7 @@ Description: Carrierroute module for OpenSIPS
 
 Package: opensips-berkeley-module
 Architecture: any
+Multi-Arch: same
 Depends: db4.6-util,
          opensips (= ${binary:Version}),
          ${misc:Depends},
@@ -254,8 +269,24 @@ Description: Berkeley Database module for OpenSIPS
  high-performance embedded DB kernel. All database tables are stored
  in files, no additional server is necessary.
 
+Package: opensips-berkeley-bin
+Architecture: any
+Multi-Arch: foreign
+Depends: opensips (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Berkeley Database module for OpenSIPS - helper program
+ OpenSIPS is a very fast and flexible SIP (RFC3261)
+ server. Written entirely in C, OpenSIPS can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package provides the berkeley database module for OpenSIPS, a
+ high-performance embedded DB kernel. You should normally install
+ opensips-berkeley-module and not this package directly.
+
 Package: opensips-ldap-modules
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: LDAP modules for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -268,6 +299,7 @@ Description: LDAP modules for OpenSIPS
 
 Package: opensips-geoip-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: IP address-to-location looku (MaxMind GeoIP API) for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -283,6 +315,7 @@ Description: IP address-to-location looku (MaxMind GeoIP API) for OpenSIPS
 
 Package: opensips-regex-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: PCRE regexp modules for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -295,6 +328,7 @@ Description: PCRE regexp modules for OpenSIPS
 
 Package: opensips-identity-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: SIP Identity module for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -305,6 +339,7 @@ Description: SIP Identity module for OpenSIPS
 
 Package: opensips-b2bua-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: B2B User Agent modules for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -316,6 +351,7 @@ Description: B2B User Agent modules for OpenSIPS
 
 Package: opensips-dbhttp-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: HTTP database connectivity module for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -326,6 +362,7 @@ Description: HTTP database connectivity module for OpenSIPS
 
 Package: opensips-dialplan-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Generic string translation module for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -338,6 +375,7 @@ Description: Generic string translation module for OpenSIPS
 
 Package: opensips-memcached-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Interface module to interact with a memcached server
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -352,6 +390,7 @@ Description: Interface module to interact with a memcached server
 
 Package: opensips-json-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Support for JSON handling in OpenSIPS script
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -365,6 +404,7 @@ Description: Support for JSON handling in OpenSIPS script
 
 Package: opensips-console
 Architecture: any
+Multi-Arch: foreign
 Depends: libberkeleydb-perl,
          libfrontier-rpc-perl,
          libnet-ip-perl,
@@ -386,6 +426,7 @@ Description: Generic tool for OpenSIPS provisioning
 
 Package: opensips-redis-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Interface module to interact with a Redis server
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -399,6 +440,7 @@ Description: Interface module to interact with a Redis server
 
 Package: opensips-rabbitmq-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Interface module to interact with a RabbitMQ server
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -411,6 +453,7 @@ Description: Interface module to interact with a RabbitMQ server
 
 Package: opensips-lua-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: LUA extensions for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -421,6 +464,7 @@ Description: LUA extensions for OpenSIPS
 
 Package: opensips-http-modules
 Architecture: any
+Multi-Arch: same
 Depends: libmicrohttpd5|libmicrohttpd10,
          opensips (= ${binary:Version}),
          ${misc:Depends},
@@ -435,6 +479,7 @@ Description: HTTP transport layer and Management Interface for OpenSIPS
 
 Package: opensips-compression-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}),
          zlib1g,
          ${misc:Depends},
@@ -449,6 +494,7 @@ Description: Headers and body compression module for OpenSIPS
 
 Package: opensips-emergency-module
 Architecture: any
+Multi-Arch: same
 Depends: opensips (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Description: Emerrgency call module for OpenSIPS
  OpenSIPS is a very fast and flexible SIP (RFC3261)
@@ -461,6 +507,7 @@ Description: Emerrgency call module for OpenSIPS
 
 Package: opensips-tls-module
 Architecture: any
+Multi-Arch: same
 Depends: libssl-dev,
          opensips (= ${binary:Version}),
          ${misc:Depends},
@@ -474,6 +521,7 @@ Description: TLS transport module for OpenSIPS
 
 Package: opensips-sctp-module
 Architecture: any
+Multi-Arch: same
 Depends: libsctp-dev,
          opensips (= ${binary:Version}),
          ${misc:Depends},
@@ -487,6 +535,7 @@ Description: SCTP transport module for OpenSIPS
 
 Package: opensips-restclient-module
 Architecture: any
+Multi-Arch: same
 Depends: libcurl4-gnutls-dev,
          opensips (= ${binary:Version}),
          ${misc:Depends},

@@ -67,7 +67,7 @@
  * the TCP, UDP, timer and fifo children.
  */
 
-
+#include "reactor_defs.h" /*keep this first*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -81,7 +81,6 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <sys/utsname.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -118,6 +117,7 @@
 #include "hash_func.h"
 #include "pt.h"
 #include "script_cb.h"
+#include "dset.h"
 #include "blacklists.h"
 
 #include "pt.h"
@@ -137,7 +137,15 @@
 
 static char* version=OPENSIPS_FULL_VERSION;
 static char* flags=OPENSIPS_COMPILE_FLAGS;
-char compiled[]= __TIME__ " " __DATE__ ;
+#ifdef VERSION_NODATE
+char compiled[] =  "" ;
+#else
+#ifdef VERSION_DATE
+const char compiled[] =  VERSION_DATE ;
+#else
+const char compiled[] =  __TIME__ " " __DATE__ ;
+#endif
+#endif
 
 /**
  * Print compile-time constants
@@ -367,7 +375,7 @@ static void kill_all_children(int signum)
 
 /**
  * Timeout handler during wait for children exit.
- * If this handler is called, a critical timeout has occured while
+ * If this handler is called, a critical timeout has occurred while
  * waiting for the children to finish => we should kill everything and exit
  * \param signo signal for killing the children
  */
@@ -383,7 +391,7 @@ static void sig_alarm_kill(int signo)
 
 /**
  * Timeout handler during wait for children exit.
- * like sig_alarm_kill, but the timeout has occured when cleaning up,
+ * like sig_alarm_kill, but the timeout has occurred when cleaning up,
  * try to leave a core for future diagnostics
  * \param signo signal for killing the children
  * \see sig_alarm_kill
@@ -881,6 +889,7 @@ int main(int argc, char** argv)
 					break;
 			case 'R':
 					received_dns|=DO_REV_DNS;
+				    break;
 			case 'd':
 					(*debug)++;
 					break;
@@ -1153,8 +1162,8 @@ try_again:
 
 	if (disable_core_dump) set_core_dump(0, 0);
 	else set_core_dump(1, shm_mem_size+pkg_mem_size+4*1024*1024);
-	if (open_files_limit>0){
-		if(increase_open_fds(open_files_limit)<0){
+	if (open_files_limit>0) {
+		if(set_open_fds_limit()<0){
 			LM_ERR("ERROR: error could not increase file limits\n");
 			goto error;
 		}
@@ -1167,6 +1176,12 @@ try_again:
 	LM_INFO("using %ld Mb shared memory\n", ((shm_mem_size/1024)/1024));
 	LM_INFO("using %ld Mb private memory per process\n",
 		((pkg_mem_size/1024)/1024));
+
+	/* init async reactor */
+	if (init_reactor_size()<0) {
+		LM_CRIT("failed to init internal reactor, exiting...\n");
+		goto error;
+	}
 
 	/* init timer */
 	if (init_timer()<0){
@@ -1201,7 +1216,12 @@ try_again:
 		LM_CRIT("failed to create DNS blacklist\n");
 		goto error;
 	}
-	
+
+	if (init_dset() != 0) {
+		LM_ERR("failed to initialize SIP forking logic!\n");
+		goto error;
+	}
+
 	/* init modules */
 	if (init_modules() != 0) {
 		LM_ERR("error while initializing modules\n");

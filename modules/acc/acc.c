@@ -524,9 +524,9 @@ static void acc_db_init_keys(void)
 		db_keys_cdrs[n++] = db_keys[m++] = &acc_setuptime_col;
 		db_keys_cdrs[n++] = db_keys[m++] = &acc_created_col;
 		db_keys_cdrs[n++] = &acc_duration_col;
-		VAL_TYPE(db_vals_cdrs + n-1) = VAL_TYPE(db_vals+m-1) = DB_INT;
-		VAL_TYPE(db_vals_cdrs + n-2) = VAL_TYPE(db_vals+m-2) = DB_DATETIME;
-		VAL_TYPE(db_vals_cdrs + n-3) = DB_INT;
+		VAL_TYPE(db_vals_cdrs + n-1) = DB_INT; /* duration*/
+		VAL_TYPE(db_vals_cdrs + n-2) = VAL_TYPE(db_vals+m-1) = DB_DATETIME;
+		VAL_TYPE(db_vals_cdrs + n-3) = VAL_TYPE(db_vals+m-2) = DB_INT;
 	}
 
 }
@@ -607,7 +607,7 @@ int acc_db_request( struct sip_msg *rq, struct sip_msg *rpl,
 		return -1;
 	}
 
-	/* formated database columns */
+	/* formatted database columns */
 	m = core2strar( rq, val_arr );
 
 	for(i = 0; i < m; i++)
@@ -1584,6 +1584,7 @@ int acc_evi_request( struct sip_msg *rq, struct sip_msg *rpl, int cdr_flag)
 	}
 	ret = 1;
 end:
+	if (backup_idx!=-1) /* can be -1, jumped to end: label*/
 	evi_params[backup_idx]->next = evi_params[backup_idx + 1];
 
 	return ret;

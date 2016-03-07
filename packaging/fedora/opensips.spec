@@ -9,11 +9,11 @@
 
 Summary:  Open Source SIP Server
 Name:     opensips
-Version:  2.1.1
+Version:  2.1.2
 Release:  1%{?dist}
 License:  GPLv2+
 Group:    System Environment/Daemons
-Source0:  http://opensips.org/pub/%{name}/%{version}/src/%{name}-%{version}-tls_src.tar.gz
+Source0:  http://download.opensips.org/%{name}-%{version}.tar.gz
 URL:      http://opensips.org
 
 BuildRequires:  expat-devel
@@ -735,23 +735,23 @@ the exchange of instant messages between SIP clients and XMPP(jabber)
 clients.
 
 %prep
-%setup -q -n %{name}-%{version}-tls
+%setup -q -n %{name}-%{version}
 
 %build
 LOCALBASE=/usr NICER=0 CFLAGS="%{optflags}" %{?_with_oracle:ORAHOME="$ORACLE_HOME"} %{__make} all %{?_smp_mflags} TLS=1 \
   exclude_modules="%EXCLUDE_MODULES" \
-  cfg-target=%{_sysconfdir}/opensips/ \
-  modules-prefix=%{buildroot}%{_prefix} \
-  modules-dir=%{_lib}/%{name}/modules
+  cfg_target=%{_sysconfdir}/opensips/ \
+  modules_prefix=%{buildroot}%{_prefix} \
+  modules_dir=%{_lib}/%{name}/modules
 
 %install
 rm -rf $RPM_BUILD_ROOT
 %{__make} install TLS=1 LIBDIR=%{_lib} \
   exclude_modules="%EXCLUDE_MODULES" \
   basedir=%{buildroot} prefix=%{_prefix} \
-  cfg-prefix=%{buildroot} \
-  modules-prefix=%{buildroot}/%{_prefix} \
-  modules-dir=%{_lib}/%{name}/modules \
+  cfg_prefix=%{buildroot} \
+  modules_prefix=%{buildroot}/%{_prefix} \
+  modules_dir=%{_lib}/%{name}/modules \
   DBTEXTON=yes # fixed dbtext documentation installation
 
 # clean some things
@@ -827,21 +827,6 @@ if [ $1 = 0 ]; then
 	/sbin/service %{name} stop > /dev/null 2>&1
 	/sbin/chkconfig --del %{name}
 fi
-%endif
-
-%if 0%{?fedora} > 16 || 0%{?rhel} > 6
-%triggerun -- %{name} < 1.7.2-1
-# Save the current service runlevel info
-# User must manually run systemd-sysv-convert --apply opensips
-# to migrate them to systemd targets
-/usr/bin/systemd-sysv-convert --save %{name} >/dev/null 2>&1 ||:
-
-# Run these because the SysV package being removed won't do them
-/sbin/chkconfig --del %{name} >/dev/null 2>&1 || :
-/bin/systemctl try-restart %{name}.service >/dev/null 2>&1 || :
-
-%triggerun -- opensips < 1.7.2-4
-chown -R %{name}:%{name} %{_sysconfdir}/%{name}
 %endif
 
 %files

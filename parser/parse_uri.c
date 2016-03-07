@@ -41,7 +41,7 @@
 #include "../error.h"
 #include "../errinfo.h"
 #include "../core_stats.h"
-
+#include "../strcommon.h"
 
 int parse_uri_headers(str headers, str h_name[], str h_val[], int h_size)
 {
@@ -1382,17 +1382,23 @@ int parse_orig_ruri(struct sip_msg* msg)
  *
  * Return value : 0 if URIs match
  *				  1 if URIs don't match
- *				 -1 if errors have occured
+ *				 -1 if errors have occurred
  */
 int compare_uris(str *raw_uri_a,struct sip_uri* parsed_uri_a,
 					str *raw_uri_b,struct sip_uri *parsed_uri_b)
 {
+	#define UNESCAPED_BUF_LEN 1024
+	char unescaped_a[UNESCAPED_BUF_LEN], unescaped_b[UNESCAPED_BUF_LEN];
+
+	str unescaped_userA={unescaped_a, UNESCAPED_BUF_LEN};
+	str unescaped_userB={unescaped_b, UNESCAPED_BUF_LEN};
+
 	struct sip_uri first;
 	struct sip_uri second;
 	char matched[URI_MAX_U_PARAMS];
 	int i,j;
 
-	if ( (!raw_uri_a && !parsed_uri_b) || (!raw_uri_b && !parsed_uri_b) )
+	if ( (!raw_uri_a && !parsed_uri_a) || (!raw_uri_b && !parsed_uri_b) )
 	{
 		LM_ERR("Provide either a raw or parsed form of a SIP URI\n");
 		return -1;
@@ -1442,6 +1448,15 @@ int compare_uris(str *raw_uri_a,struct sip_uri* parsed_uri_a,
 		LM_DBG("Different uri types\n");
 		return 1;
 	}
+
+	if (unescape_user(&first.user, &unescaped_userA) < 0 ||
+			unescape_user(&second.user, &unescaped_userB) < 0) {
+		LM_ERR("Failed to unescape user!\n");
+		return -1;
+	}
+
+	first.user = unescaped_userA;
+	second.user = unescaped_userB;
 
 	compare_uri_val(user,strncmp);
 	compare_uri_val(passwd,strncmp);

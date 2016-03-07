@@ -1268,7 +1268,7 @@ static void trace_onreply_in(struct cell* t, int type, struct tmcb_params *ps)
 	struct sip_msg* req;
 	int_str        avp_value;
 	struct usr_avp *avp;
-	char statusbuf[8];
+	char statusbuf[INT2STR_MAX_LEN];
 	int len;
 
 	if(t==NULL || t->uas.request==0 || ps==NULL)
@@ -1325,7 +1325,9 @@ static void trace_onreply_in(struct cell* t, int type, struct tmcb_params *ps)
 	db_vals[2].val.str_val.s = t->method.s;
 	db_vals[2].val.str_val.len = t->method.len;
 
-	strcpy(statusbuf, int2str(ps->code, &len));
+	char * str_code = int2str(ps->code, &len);
+	statusbuf[INT2STR_MAX_LEN-1]=0;
+	strncpy(statusbuf, str_code, len >= INT2STR_MAX_LEN ? INT2STR_MAX_LEN-1 : len);
 	db_vals[3].val.str_val.s = statusbuf;
 	db_vals[3].val.str_val.len = len;
 
@@ -1511,7 +1513,7 @@ static void trace_sl_onreply_out( unsigned int types, struct sip_msg* req,
 	struct usr_avp *avp;
 	struct ip_addr to_ip;
 	int len;
-	char statusbuf[5];
+	char statusbuf[INT2STR_MAX_LEN];
 
 	if(req==NULL || sl_param==NULL)
 	{
@@ -1576,7 +1578,9 @@ static void trace_sl_onreply_out( unsigned int types, struct sip_msg* req,
 			&msg->rcv.dst_ip, msg->rcv.dst_port, msg->rcv.proto);
 	}
 
-	strcpy(statusbuf, int2str(sl_param->code, &len));
+	char * str_code = int2str(sl_param->code, &len);
+	statusbuf[INT2STR_MAX_LEN-1]=0;
+	strncpy(statusbuf, str_code, len >= INT2STR_MAX_LEN ? INT2STR_MAX_LEN-1 : len);
 	db_vals[3].val.str_val.s = statusbuf;
 	db_vals[3].val.str_val.len = len;
 
@@ -1820,8 +1824,7 @@ static int trace_send_hep_duplicate(str *body, str *fromproto, str *fromip,
 
 
 	/* create a temporary proxy*/
-	proto = PROTO_UDP;
-	p=mk_proxy(&dup_uri->host, (dup_uri->port_no)?dup_uri->port_no:SIP_PORT,proto, 0);
+	p=mk_proxy(&dup_uri->host, (dup_uri->port_no)?dup_uri->port_no:SIP_PORT, PROTO_UDP, 0);
 	if (p==0){
 		LM_ERR("bad host name in uri\n");
 		return -1;
@@ -1838,7 +1841,12 @@ static int trace_send_hep_duplicate(str *body, str *fromproto, str *fromip,
 	/* Version && proto && length */
 	hdr.hp_l = sizeof(struct hep_hdr);
 	hdr.hp_v = hep_version;
+
+	/* set proto to PROTO_UDP after we set the proto in HEP header;
+	 * in hep header we need standard library format IPPROTO_* which is set by
+	 * pipport2su() function */
 	hdr.hp_p = proto;
+	proto = PROTO_UDP;
 
 	/* AND the last */
 	if (from_su.s.sa_family==AF_INET){
