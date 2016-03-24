@@ -78,12 +78,33 @@ static pv_export_t pvars[] = {
 	{ {0, 0}, 0, 0, 0, 0, 0, 0, 0 }
 };
 
+static module_dependency_t *get_deps_dialog(param_export_t *param)
+{
+	int force = *(int *)param->param_pointer;
+
+	if (force == 0)
+		return NULL;
+
+	return alloc_module_dep(MOD_TYPE_DEFAULT, "dialog", DEP_ABORT);
+}
+
+static dep_export_t deps = {
+	{ /* OpenSIPS module dependencies */
+		{ MOD_TYPE_DEFAULT, "tm", DEP_ABORT },
+		{ MOD_TYPE_NULL, NULL, 0 },
+	},
+	{ /* modparam dependencies */
+		{ "force_dialog",		get_deps_dialog },
+		{ NULL, NULL },
+	},
+};
+
 struct module_exports exports= {
 	"topology_hiding",
 	MOD_TYPE_DEFAULT, /* class of this module */
 	MODULE_VERSION,
 	DEFAULT_DLFLAGS,  /* dlopen flags */
-	0,                /* OpenSIPS module dependencies */
+	&deps,            /* OpenSIPS module dependencies */
 	cmds,             /* exported functions */
 	0,                /* exported async functions */
 	params,           /* param exports */
@@ -206,6 +227,7 @@ static int pv_topo_callee_callid(struct sip_msg *msg, pv_param_t *param, pv_valu
 {
 	struct dlg_cell *dlg;
 	int req_len = 0,i;
+	char *p;
 
 	if(res==NULL)
 		return -1;
@@ -234,6 +256,12 @@ static int pv_topo_callee_callid(struct sip_msg *msg, pv_param_t *param, pv_valu
 
 	base64encode((unsigned char *)(callid_buf+topo_hiding_prefix.len+req_len),
 		     (unsigned char *)(callid_buf),dlg->callid.len);
+
+	p = callid_buf+ 2*req_len - 1;
+	while (*p == '=') {
+		*p = '-';
+		p--;
+	}
 
 	res->rs.s = callid_buf+req_len;
 	res->rs.len = req_len;
