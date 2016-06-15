@@ -889,6 +889,12 @@ static int mod_init(void)
 	mark_dlg_loaded_callbacks_run();
 	destroy_cachedb(0);
 
+	if (replication_dests && !bin) {
+		LM_ERR("You are using dialog replication, but there "
+				"is no bin_listen parameter defined!\n");
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -1663,10 +1669,20 @@ int pv_set_dlg_timeout(struct sip_msg *msg, pv_param_t *param,
 		if (replication_dests)
 			replicate_dialog_updated(dlg);
 
-		if (timer_update && update_dlg_timer(&dlg->tl, timeout) < 0) {
-			LM_ERR("failed to update timer\n");
-			return -1;
+		if (timer_update) {
+			switch ( update_dlg_timer(&dlg->tl, timeout) ) {
+			case -1:
+				LM_ERR("failed to update timer\n");
+				return -1;
+			case 1:
+				/* dlg inserted in timer list with new expire (reference it)*/
+				ref_dlg(dlg,1);
+			case 0:
+				/* timeout value was updated */
+				break;
+			}
 		}
+
 	} else if (current_processing_ctx) {
 		/* store it until we match the dialog */
 		ctx_timeout_set( timeout );

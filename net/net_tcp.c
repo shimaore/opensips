@@ -94,8 +94,8 @@ int unix_tcp_sock = -1;
 /*!< current number of open connections */
 static int tcp_connections_no = 0;
 
-/*!< by default accept aliases */
-int tcp_accept_aliases=1;
+/*!< by default don't accept aliases */
+int tcp_accept_aliases=0;
 int tcp_connect_timeout=DEFAULT_TCP_CONNECT_TIMEOUT;
 int tcp_con_lifetime=DEFAULT_TCP_CONNECTION_LIFETIME;
 int tcp_listen_backlog=DEFAULT_TCP_LISTEN_BACKLOG;
@@ -495,7 +495,7 @@ static struct tcp_connection* _tcpconn_find(int id)
 
 
 /*! \brief _tcpconn_find with locks and acquire fd */
-int tcp_conn_get(int id, struct ip_addr* ip, int port,
+int tcp_conn_get(int id, struct ip_addr* ip, int port, enum sip_protos proto,
 									struct tcp_connection** conn, int* conn_fd)
 {
 	struct tcp_connection* c;
@@ -515,7 +515,7 @@ int tcp_conn_get(int id, struct ip_addr* ip, int port,
 		TCPCONN_UNLOCK(part);
 	}
 
-	/* continue search based on IP + port */
+	/* continue search based on IP address + port + transport */
 #ifdef EXTRA_DEBUG
 	LM_DBG("%d  port %d\n",id, port);
 	if (ip) print_ip("tcpconn_find: ip ", ip, "\n");
@@ -532,8 +532,10 @@ int tcp_conn_get(int id, struct ip_addr* ip, int port,
 				print_ip("ip=",&a->parent->rcv.src_ip,"\n");
 #endif
 				c = a->parent;
-				if ( (c->state!=S_CONN_BAD) && (port==a->port) &&
-				(ip_addr_cmp(ip, &c->rcv.src_ip)) )
+				if (c->state != S_CONN_BAD &&
+				    port == a->port &&
+				    proto == c->type &&
+				    ip_addr_cmp(ip, &c->rcv.src_ip))
 					goto found;
 			}
 			TCPCONN_UNLOCK(part);
@@ -730,9 +732,11 @@ int tcpconn_add_alias(int id, int port, int proto)
 	if (c){
 		hash=tcp_addr_hash(&c->rcv.src_ip, port);
 		/* search the aliases for an already existing one */
-		for (a=TCP_PART(id).tcpconn_aliases_hash[hash]; a; a=a->next){
-			if ( (a->parent->state!=S_CONN_BAD) && (port==a->port) &&
-					(ip_addr_cmp(&c->rcv.src_ip, &a->parent->rcv.src_ip)) ){
+		for (a=TCP_PART(id).tcpconn_aliases_hash[hash]; a; a=a->next) {
+			if (a->parent->state != S_CONN_BAD &&
+			    port == a->port &&
+			    proto == a->parent->type &&
+			    ip_addr_cmp(&c->rcv.src_ip, &a->parent->rcv.src_ip)) {
 				/* found */
 				if (a->parent!=c) goto error_sec;
 				else goto ok;
@@ -794,14 +798,14 @@ static struct tcp_connection* tcpconn_new(int sock, union sockaddr_union* su,
 	c=(struct tcp_connection*)shm_malloc(sizeof(struct tcp_connection));
 	if (c==0){
 		LM_ERR("shared memory allocation failure\n");
-		goto error;
+		return 0;
 	}
 	memset(c, 0, sizeof(struct tcp_connection)); /* zero init */
 	c->s=sock;
 	c->fd=-1; /* not initialized */
 	if (lock_init(&c->write_lock)==0){
 		LM_ERR("init lock failed\n");
-		goto error;
+		goto error0;
 	}
 
 	c->rcv.src_su=*su;
@@ -829,17 +833,16 @@ static struct tcp_connection* tcpconn_new(int sock, union sockaddr_union* su,
 	protos[si->proto].net.conn_init(c)<0) {
 		LM_ERR("failed to do proto %d specific init for conn %p\n",
 			si->proto,c);
-		goto error;
+		goto error1;
 	}
 
 	tcp_connections_no++;
 	return c;
 
-error:
-	if (c) {
-		if (c->write_lock) lock_destroy(&c->write_lock);
-		shm_free(c);
-	}
+error1:
+	lock_destroy(&c->write_lock);
+error0:
+	shm_free(c);
 	return 0;
 }
 

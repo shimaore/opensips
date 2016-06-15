@@ -1232,7 +1232,7 @@ after_unlock5:
 	}
 
 	if ( (event==DLG_EVENT_REQ || event==DLG_EVENT_REQACK)
-	&& new_state==DLG_STATE_CONFIRMED) {
+	&& (new_state==DLG_STATE_CONFIRMED || new_state==DLG_STATE_CONFIRMED_NA) ) {
 		LM_DBG("sequential request successfully processed (dst_leg=%d)\n",
 			dst_leg);
 
@@ -1249,8 +1249,16 @@ after_unlock5:
 
 		/* update timer during sequential request? */
 		if (dlg->lifetime_dirty) {
-			if (update_dlg_timer( &dlg->tl, dlg->lifetime )==-1)
+			switch ( update_dlg_timer( &dlg->tl, dlg->lifetime ) ) {
+			case -1:
 				LM_ERR("failed to update dialog lifetime\n");
+			case 0:
+				/* timeout value was updated */
+				break;
+			case 1:
+				/* dlg inserted in timer list with new expire (reference it)*/
+				ref_dlg(dlg,1);
+			}
 		}
 		LM_DBG("dialog_timeout: %d\n", dlg->lifetime);
 		if ( event!=DLG_EVENT_REQACK ) {

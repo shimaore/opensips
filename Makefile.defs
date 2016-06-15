@@ -62,7 +62,7 @@ MAIN_NAME=opensips
 #version number
 VERSION_MAJOR = 2
 VERSION_MINOR = 1
-VERSION_SUBMINOR = 2
+VERSION_SUBMINOR = 3
 VERSION_BUILD =
 
 ifneq (,$(VERSION_BUILD))
@@ -683,6 +683,10 @@ ifeq ($(ARCH), arm)
 	use_fast_lock=yes
 endif
 
+ifeq ($(ARCH), arm6)
+	use_fast_lock=yes
+endif
+
 ifeq ($(ARCH), ppc)
 	use_fast_lock=yes
 endif
@@ -705,8 +709,24 @@ ifeq ($(ARCH), alpha)
 	use_fast_lock=yes
 endif
 
+# decide on the locking type
+ifeq (,$(findstring USE_PTHREAD_MUTEX, $(DEFS)))
+ifeq (,$(findstring USE_POSIX_SEM, $(DEFS)))
+ifeq (,$(findstring USE_SYSV_SEM, $(DEFS)))
 ifeq ($(use_fast_lock), yes)
 	DEFS+= -DFAST_LOCK -DADAPTIVE_WAIT -DADAPTIVE_WAIT_LOOPS=1024 
+	found_lock_method=yes
+endif
+else
+	## USE_SYSV_SEM was manually forced from .conf
+	found_lock_method=yes
+endif
+else
+	## USE_POSIX_SEM was manually forced from .conf
+	found_lock_method=yes
+endif
+else
+	## USE_PTHREAD_MUTEX was manually forced from .conf
 	found_lock_method=yes
 endif
 
@@ -1290,7 +1310,7 @@ ifeq ($(OS), linux)
 			-DHAVE_MSG_NOSIGNAL -DHAVE_MSGHDR_MSG_CONTROL -DHAVE_ALLOCA_H \
 			-DHAVE_TIMEGM
 	ifneq ($(found_lock_method), yes)
-		DEFS+= -DUSE_SYSV_SEM  # try posix sems
+		DEFS+= -DUSE_POSIX_SEM  # try posix sems
 		found_lock_method=yes
 	endif
 	# check for >= 2.5.44
@@ -1504,6 +1524,13 @@ ifneq (,$(findstring CYGWIN, $(OS)))
 		DEFS+= -DUSE_SYSV_SEM  # try sys v sems
 		found_lock_method=yes
 	endif
+endif
+
+#if POSIX sems are to be used, be sure to link with ptread
+ifneq (,$(findstring USE_POSIX_SEM, $(DEFS)))
+ifeq (,$(findstring pthread, $(LIBS)))
+LIBS+= -pthread
+endif
 endif
 
 #add libsctp if needed

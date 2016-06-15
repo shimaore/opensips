@@ -790,9 +790,11 @@ static void _th_no_dlg_onreply(struct cell* t, int type, struct tmcb_params *par
 		return;
 	}
 
-	if (topo_no_dlg_encode_contact(rpl,flags) < 0) {
-		LM_ERR("Failed to encode contact header \n");
-		return;
+	if ( !(rpl->REPLY_STATUS>=300 && rpl->REPLY_STATUS<400) ) {
+		if (topo_no_dlg_encode_contact(rpl,flags) < 0) {
+			LM_ERR("Failed to encode contact header \n");
+			return;
+		}
 	}
 
 	if (!(lmp = restore_vias_from_req(req,rpl))) {
@@ -909,17 +911,43 @@ static int topo_hiding_with_dlg(struct sip_msg *req,struct cell* t,struct dlg_ce
 	}
 
 	if (dlg_api.register_dlgcb(dlg, DLGCB_RESPONSE_FWDED, topo_dlg_initial_reply, NULL, NULL)) {
-		LM_ERR("cannot register callback for fwded relies in dialog\n");
+		LM_ERR("cannot register callback for fwded replies in dialog\n");
 		return -1;
 	}
 
-	if (dlg_api.register_dlgcb(dlg, DLGCB_TERMINATED | DLGCB_REQ_WITHIN, 
+	if (dlg_api.register_dlgcb(dlg, DLGCB_TERMINATED | DLGCB_REQ_WITHIN,
 	topo_dlg_onroute, NULL , NULL)) {
 		LM_ERR("cannot register callback for sequential requests\n");
 		return -1;
 	}
 
 	return 1;
+}
+
+/* restore callbacks */
+void th_loaded_callback(struct dlg_cell *dlg, int type,
+			struct dlg_cb_params *_params)
+{
+	if (!dlg) {
+		LM_ERR("null dialog - cannot fetch message flags\n");
+		return;
+	}
+
+	if (!dlg_api.is_mod_flag_set(dlg,TOPOH_ONGOING)) {
+		LM_DBG("no topo hiding for dlg %p\n", dlg);
+		return;
+	}
+
+	if (dlg_api.register_dlgcb(dlg, DLGCB_RESPONSE_FWDED, topo_dlg_initial_reply, NULL, NULL)) {
+		LM_ERR("cannot register callback for fwded replies in dialog\n");
+		return ;
+	}
+
+	if (dlg_api.register_dlgcb(dlg, DLGCB_TERMINATED | DLGCB_REQ_WITHIN,
+	topo_dlg_onroute, NULL , NULL)) {
+		LM_ERR("cannot register callback for sequential requests\n");
+		return ;
+	}
 }
 
 static void topo_unref_dialog(void *dialog)
@@ -1427,7 +1455,8 @@ static char* build_encoded_contact_suffix(struct sip_msg* msg,int *suffix_len)
 {
 	short rr_len,ct_len,addr_len,enc_len;
 	char *suffix_plain,*suffix_enc,*p,*s;
-	str rr_set,contact;
+	str rr_set = {NULL, 0};
+	str contact;
 	int i,total_len;
 	struct sip_uri ctu;
 	struct th_ct_params* el;
@@ -1459,8 +1488,7 @@ static char* build_encoded_contact_suffix(struct sip_msg* msg,int *suffix_len)
 	((contact_body_t *)msg->contact->parsed)->contacts==NULL ||
 	((contact_body_t *)msg->contact->parsed)->contacts->next!=NULL ) {
 		LM_ERR("bad Contact HDR\n");
-		pkg_free(rr_set.s);
-		return NULL;
+		goto error;
 	} else {
 		contact = ((contact_body_t *)msg->contact->parsed)->contacts->uri;
 		ct_len = (short)contact.len;
@@ -1612,10 +1640,14 @@ static char* build_encoded_contact_suffix(struct sip_msg* msg,int *suffix_len)
 		}
 	}
 
+	if (rr_set.s)
+		pkg_free(rr_set.s);
 	pkg_free(suffix_plain);
 	*suffix_len = total_len;
 	return suffix_enc;
 error:
+	if (rr_set.s)
+		pkg_free(rr_set.s);
 	return NULL;
 }
 
