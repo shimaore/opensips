@@ -62,7 +62,7 @@ MAIN_NAME=opensips
 #version number
 VERSION_MAJOR = 2
 VERSION_MINOR = 1
-VERSION_SUBMINOR = 3
+VERSION_SUBMINOR = 4
 VERSION_BUILD =
 
 ifneq (,$(VERSION_BUILD))
@@ -683,9 +683,10 @@ ifeq ($(ARCH), arm)
 	use_fast_lock=yes
 endif
 
-ifeq ($(ARCH), arm6)
-	use_fast_lock=yes
-endif
+# use need some asm code for locking before enabling this
+#ifeq ($(ARCH), arm6)
+#	use_fast_lock=yes
+#endif
 
 ifeq ($(ARCH), ppc)
 	use_fast_lock=yes
@@ -1312,6 +1313,9 @@ ifeq ($(OS), linux)
 	ifneq ($(found_lock_method), yes)
 		DEFS+= -DUSE_POSIX_SEM  # try posix sems
 		found_lock_method=yes
+	endif
+	ifneq (,$(findstring USE_PTHREAD_MUTEX, $(DEFS)))
+		LIBS += -pthread
 	endif
 	# check for >= 2.5.44
 	ifeq ($(shell [ $(OSREL_N) -ge 2005044 ] && echo has_epoll), has_epoll)
